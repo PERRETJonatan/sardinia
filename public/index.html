@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sardigna</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <header>
+    <h1>Sardigna</h1>
+    <nav id="header-nav">
+      <!-- filled by JS based on auth state -->
+    </nav>
+  </header>
+
+  <main>
+    <section id="map-section">
+      <div id="map"></div>
+    </section>
+
+    <section id="gallery-section">
+      <h2>Photos</h2>
+      <div id="gallery"></div>
+      <p id="empty-state" hidden>No photos yet.</p>
+    </section>
+  </main>
+
+  <div id="lightbox" hidden>
+    <button id="lightbox-close">&times;</button>
+    <img id="lightbox-img" src="" alt="">
+    <div id="lightbox-info"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const markers = [];
+    let isAdmin = false;
+
+    async function init() {
+      const me = await fetch('/api/me').then(r => r.json());
+      isAdmin = me.admin;
+
+      const nav = document.getElementById('header-nav');
+      if (isAdmin) {
+        nav.innerHTML = `
+          <a href="/upload.html" class="btn">+ Upload</a>
+          <button id="logout-btn" class="btn btn-ghost">${me.username} · Log out</button>
+        `;
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+          await fetch('/api/logout', { method: 'POST' });
+          location.reload();
+        });
+      } else {
+        nav.innerHTML = `<a href="/login.html" class="btn btn-ghost">Admin</a>`;
+      }
+
+      loadImages();
+    }
+
+    async function loadImages() {
+      const res = await fetch('/api/images');
+      const images = await res.json();
+
+      const gallery = document.getElementById('gallery');
+      const emptyState = document.getElementById('empty-state');
+
+      gallery.innerHTML = '';
+      markers.forEach(m => m.remove());
+      markers.length = 0;
+
+      if (images.length === 0) {
+        emptyState.hidden = false;
+        return;
+      }
+      emptyState.hidden = true;
+
+      const geoImages = images.filter(img => img.lat != null && img.lng != null);
+
+      for (const img of images) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="/uploads/${img.filename}" alt="${img.original_name}" loading="lazy">
+          <div class="card-meta">
+            <span class="card-name">${img.original_name}</span>
+            ${img.lat != null
+              ? `<span class="card-coords">${img.lat.toFixed(5)}, ${img.lng.toFixed(5)}</span>`
+              : '<span class="card-coords no-coords">No GPS data</span>'}
+          </div>
+          ${isAdmin ? `<button class="delete-btn" data-id="${img.id}" title="Delete">&times;</button>` : ''}
+        `;
+        card.querySelector('img').addEventListener('click', () => openLightbox(img));
+        if (isAdmin) {
+          card.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteImage(img.id);
+          });
+        }
+        gallery.appendChild(card);
+
+        if (img.lat != null && img.lng != null) {
+          const marker = L.marker([img.lat, img.lng]).addTo(map);
+          marker.bindPopup(`
+            <img src="/uploads/${img.filename}" style="width:120px;height:80px;object-fit:cover;border-radius:4px;">
+            <br><small>${img.original_name}</small>
+          `);
+          marker.on('click', () => openLightbox(img));
+          markers.push(marker);
+        }
+      }
+
+      if (geoImages.length > 0) {
+        const bounds = L.latLngBounds(geoImages.map(i => [i.lat, i.lng]));
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+    }
+
+    function openLightbox(img) {
+      document.getElementById('lightbox-img').src = `/uploads/${img.filename}`;
+      document.getElementById('lightbox-info').innerHTML = `
+        <strong>${img.original_name}</strong>
+        ${img.lat != null ? `<br>${img.lat.toFixed(6)}, ${img.lng.toFixed(6)}` : ''}
+        <br><small>${img.created_at}</small>
+      `;
+      document.getElementById('lightbox').hidden = false;
+    }
+
+    document.getElementById('lightbox-close').addEventListener('click', () => {
+      document.getElementById('lightbox').hidden = true;
+    });
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+    });
+
+    async function deleteImage(id) {
+      if (!confirm('Delete this photo?')) return;
+      await fetch(`/api/images/${id}`, { method: 'DELETE' });
+      loadImages();
+    }
+
+    init();
+  </script>
+</body>
+</html>

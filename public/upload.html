@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload — Sardigna</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="btn btn-ghost">← Back</a>
+    <h1>Upload Photo</h1>
+  </header>
+
+  <main class="upload-main">
+    <form id="upload-form">
+      <label id="drop-zone" for="file-input">
+        <div id="preview-wrap">
+          <svg id="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+          <p id="drop-label">Tap to choose from your photo library</p>
+          <img id="preview-img" src="" alt="" hidden>
+        </div>
+      </label>
+
+      <input type="file" id="file-input" name="image" accept="image/*" hidden>
+
+      <!-- Separate input that opens the camera directly -->
+      <input type="file" id="camera-input" name="image" accept="image/*" capture="environment" hidden>
+
+      <button type="button" id="camera-btn" class="btn btn-ghost camera-btn">Take a new photo instead</button>
+
+      <div id="gps-status">
+        <span id="gps-icon">📍</span>
+        <span id="gps-text">Waiting for location…</span>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn btn-primary" disabled>Upload</button>
+    </form>
+
+    <div id="result" hidden>
+      <div id="result-icon">✓</div>
+      <p id="result-msg"></p>
+      <div class="result-actions">
+        <a href="/" class="btn">View Gallery</a>
+        <button id="upload-another" class="btn btn-ghost">Upload Another</button>
+      </div>
+    </div>
+
+    <div id="error-banner" hidden></div>
+  </main>
+
+  <script>
+    // Redirect to login if not an admin
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (!data.admin) window.location.replace('/login.html?next=/upload.html');
+    });
+
+    const fileInput = document.getElementById('file-input');
+    const cameraInput = document.getElementById('camera-input');
+    const previewImg = document.getElementById('preview-img');
+    const uploadIcon = document.getElementById('upload-icon');
+    const dropLabel = document.getElementById('drop-label');
+    const submitBtn = document.getElementById('submit-btn');
+    const gpsText = document.getElementById('gps-text');
+    const form = document.getElementById('upload-form');
+    const result = document.getElementById('result');
+    const errorBanner = document.getElementById('error-banner');
+
+    let activeInput = fileInput;
+    let currentPos = null; // { lat, lng }
+
+    // Request location as soon as the page loads
+    function startGeolocation() {
+      if (!navigator.geolocation) {
+        gpsText.textContent = 'Location not supported by this browser';
+        return;
+      }
+      gpsText.textContent = 'Waiting for location…';
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const acc = Math.round(pos.coords.accuracy);
+          gpsText.textContent = `${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)} (±${acc}m)`;
+        },
+        (err) => {
+          currentPos = null;
+          gpsText.textContent = err.code === 1
+            ? 'Location denied — photos will be saved without coordinates'
+            : 'Could not get location';
+        },
+        { enableHighAccuracy: true, maximumAge: 10000 }
+      );
+    }
+
+    startGeolocation();
+
+    function onFileSelected(input) {
+      const file = input.files[0];
+      if (!file) return;
+      activeInput = input;
+
+      previewImg.src = URL.createObjectURL(file);
+      previewImg.hidden = false;
+      uploadIcon.hidden = true;
+      dropLabel.hidden = true;
+      submitBtn.disabled = false;
+    }
+
+    fileInput.addEventListener('change', () => onFileSelected(fileInput));
+    cameraInput.addEventListener('change', () => onFileSelected(cameraInput));
+
+    document.getElementById('camera-btn').addEventListener('click', () => {
+      cameraInput.click();
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = activeInput.files[0];
+      if (!file) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Uploading…';
+      errorBanner.hidden = true;
+
+      const data = new FormData();
+      data.append('image', file);
+      if (currentPos) {
+        data.append('lat', currentPos.lat);
+        data.append('lng', currentPos.lng);
+      }
+
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: data });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const json = await res.json();
+
+        form.hidden = true;
+        result.hidden = false;
+        document.getElementById('result-msg').textContent =
+          json.lat != null
+            ? `Photo saved at ${json.lat.toFixed(5)}, ${json.lng.toFixed(5)}`
+            : 'Photo saved without location.';
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Upload';
+        errorBanner.textContent = `Upload failed: ${err.message}`;
+        errorBanner.hidden = false;
+      }
+    });
+
+    function resetForm() {
+      form.hidden = false;
+      result.hidden = true;
+      fileInput.value = '';
+      cameraInput.value = '';
+      previewImg.hidden = true;
+      previewImg.src = '';
+      uploadIcon.hidden = false;
+      dropLabel.hidden = false;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Upload';
+      activeInput = fileInput;
+    }
+
+    document.getElementById('upload-another').addEventListener('click', resetForm);
+  </script>
+</body>
+</html>

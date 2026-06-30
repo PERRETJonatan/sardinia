@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Sardigna</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="btn btn-ghost">← Back</a>
+    <h1>Admin Login</h1>
+  </header>
+
+  <main class="upload-main">
+    <form id="login-form">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="submit-btn" class="btn btn-primary">Log in</button>
+    </form>
+
+    <div id="error-banner" hidden></div>
+  </main>
+
+  <script>
+    // Already logged in? Go home.
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (data.admin) window.location.replace('/');
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      const error = document.getElementById('error-banner');
+      error.hidden = true;
+      btn.disabled = true;
+      btn.textContent = 'Logging in…';
+
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+
+      if (res.ok) {
+        const next = new URLSearchParams(location.search).get('next') || '/';
+        window.location.replace(next);
+      } else {
+        const data = await res.json();
+        error.textContent = data.error ?? 'Login failed';
+        error.hidden = false;
+        btn.disabled = false;
+        btn.textContent = 'Log in';
+      }
+    });
+  </script>
+</body>
+</html>
