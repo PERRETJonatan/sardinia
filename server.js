@@ -8,10 +8,6 @@ const { compareSync } = bcrypt;
 import { fileURLToPath } from 'url';
 import { dirname, join, extname } from 'path';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
-import { createServer as createHttpServer } from 'http';
-import { createServer as createHttpsServer } from 'https';
-import { networkInterfaces } from 'os';
-import selfsigned from 'selfsigned';
 import { randomBytes } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -52,7 +48,6 @@ const upload = multer({
   },
 });
 
-// Session secret — generated once and persisted
 const secretPath = join(__dirname, '.session-secret');
 const sessionSecret = existsSync(secretPath)
   ? readFileSync(secretPath, 'utf8').trim()
@@ -63,6 +58,7 @@ const sessionSecret = existsSync(secretPath)
     })();
 
 const app = express();
+app.set('trust proxy', 1); // trust the reverse proxy for secure cookies
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -70,7 +66,7 @@ app.use(session({
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, httpOnly: true, sameSite: 'lax' },
+  cookie: { secure: 'auto', httpOnly: true, sameSite: 'lax' },
 }));
 
 function requireAdmin(req, res, next) {
@@ -78,7 +74,6 @@ function requireAdmin(req, res, next) {
   res.status(401).json({ error: 'Unauthorized' });
 }
 
-// Auth routes
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body ?? {};
   if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
@@ -104,7 +99,6 @@ app.get('/api/me', (req, res) => {
   }
 });
 
-// Image routes
 app.post('/api/upload', requireAdmin, upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
@@ -135,12 +129,7 @@ app.post('/api/upload', requireAdmin, upload.single('image'), async (req, res) =
     .prepare('INSERT INTO images (filename, original_name, lat, lng) VALUES (?, ?, ?, ?)')
     .run(req.file.filename, req.file.originalname, lat, lng);
 
-  res.json({
-    id: row.lastInsertRowid,
-    filename: req.file.filename,
-    lat,
-    lng,
-  });
+  res.json({ id: row.lastInsertRowid, filename: req.file.filename, lat, lng });
 });
 
 app.get('/api/images', (req, res) => {
@@ -158,44 +147,7 @@ app.delete('/api/images/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// TLS setup
-const CERT_DIR = join(__dirname, '.certs');
-if (!existsSync(CERT_DIR)) mkdirSync(CERT_DIR);
-const certPath = join(CERT_DIR, 'cert.pem');
-const keyPath  = join(CERT_DIR, 'key.pem');
-
-let tlsOptions;
-if (existsSync(certPath) && existsSync(keyPath)) {
-  tlsOptions = { cert: readFileSync(certPath), key: readFileSync(keyPath) };
-} else {
-  const pems = selfsigned.generate([{ name: 'commonName', value: 'sardigna.local' }], {
-    days: 3650, keySize: 2048,
-  });
-  writeFileSync(certPath, pems.cert);
-  writeFileSync(keyPath, pems.private);
-  tlsOptions = { cert: pems.cert, key: pems.private };
-  console.log('Generated self-signed TLS certificate (.certs/)');
-}
-
-const HTTP_PORT  = process.env.PORT || 3000;
-const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-
-createHttpServer((req, res) => {
-  const host = req.headers.host?.replace(/:.*/, '');
-  res.writeHead(301, { Location: `https://${host}:${HTTPS_PORT}${req.url}` });
-  res.end();
-}).listen(HTTP_PORT, '0.0.0.0');
-
-createHttpsServer(tlsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
-  console.log('\nSardigna is running.');
-  const nets = networkInterfaces();
-  for (const iface of Object.values(nets)) {
-    for (const addr of iface) {
-      if (addr.family === 'IPv4' && !addr.internal) {
-        console.log(`\n  Open on your phone: https://${addr.address}:${HTTPS_PORT}`);
-        console.log('  (Accept the certificate warning once — it\'s your own server)');
-      }
-    }
-  }
-  console.log();
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sardigna running on http://0.0.0.0:${PORT}`);
 });
