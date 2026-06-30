@@ -6,14 +6,14 @@
   <title>Login — Sardigna</title>
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <header>
+<body class="bg-app min-h-dvh">
+  <header class="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-rim sticky top-0 z-[100]">
     <a href="/" class="btn btn-ghost">← Back</a>
-    <h1>Admin Login</h1>
+    <h1 class="flex-1 text-xl font-bold">Admin Login</h1>
   </header>
 
-  <main class="upload-main">
-    <form id="login-form">
+  <main class="max-w-lg mx-auto px-5 py-6 flex flex-col gap-4">
+    <form id="login-form" class="flex flex-col gap-4">
       <div class="field">
         <label for="username">Username</label>
         <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" required>
@@ -22,14 +22,13 @@
         <label for="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
       </div>
-      <button type="submit" id="submit-btn" class="btn btn-primary">Log in</button>
+      <button type="submit" id="submit-btn" class="btn-primary">Log in</button>
     </form>
 
-    <div id="error-banner" hidden></div>
+    <div id="error-banner" hidden class="bg-red-50 text-danger border border-red-200 px-3.5 py-2.5 rounded-[10px] text-sm"></div>
   </main>
 
   <script>
-    // Already logged in? Go home.
     fetch('/api/me').then(r => r.json()).then(data => {
       if (data.admin) window.location.replace('/');
     });

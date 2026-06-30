@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "css": "tailwindcss -i src/app.css -o public/style.css",
+    "css:watch": "tailwindcss -i src/app.css -o public/style.css --watch"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -12,5 +14,9 @@
     "express": "^4.19.2",
     "express-session": "^1.18.1",
     "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.2",
+    "tailwindcss": "^4.3.2"
   }
 }

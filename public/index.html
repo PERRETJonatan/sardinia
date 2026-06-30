@@ -7,30 +7,28 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
-<body>
-  <header>
-    <h1>Sardigna</h1>
-    <nav id="header-nav">
-      <!-- filled by JS based on auth state -->
-    </nav>
+<body class="bg-app min-h-dvh">
+  <header class="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-rim sticky top-0 z-[100]">
+    <h1 class="flex-1 text-xl font-bold">Sardigna</h1>
+    <nav id="header-nav"></nav>
   </header>
 
   <main>
-    <section id="map-section">
-      <div id="map"></div>
+    <section>
+      <div id="map" class="h-[340px] w-full"></div>
     </section>
 
-    <section id="gallery-section">
-      <h2>Photos</h2>
-      <div id="gallery"></div>
-      <p id="empty-state" hidden>No photos yet.</p>
+    <section class="p-5">
+      <h2 class="text-[0.78rem] font-semibold uppercase tracking-wider text-muted mb-3.5">Photos</h2>
+      <div id="gallery" class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3"></div>
+      <p id="empty-state" hidden class="text-muted py-5">No photos yet.</p>
     </section>
   </main>
 
-  <div id="lightbox" hidden>
-    <button id="lightbox-close">&times;</button>
-    <img id="lightbox-img" src="" alt="">
-    <div id="lightbox-info"></div>
+  <div id="lightbox" hidden class="fixed inset-0 bg-black/85 z-[2000] flex flex-col items-center justify-center p-5 gap-4">
+    <button id="lightbox-close" class="fixed top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white border-0 text-2xl cursor-pointer flex items-center justify-center leading-none">&times;</button>
+    <img id="lightbox-img" src="" alt="" class="max-w-full max-h-[75dvh] rounded-[10px] object-contain">
+    <div id="lightbox-info" class="text-white text-center text-sm leading-relaxed"></div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -66,8 +64,7 @@
     }
 
     async function loadImages() {
-      const res = await fetch('/api/images');
-      const images = await res.json();
+      const images = await fetch('/api/images').then(r => r.json());
 
       const gallery = document.getElementById('gallery');
       const emptyState = document.getElementById('empty-state');
@@ -88,9 +85,8 @@
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
-          <img src="/uploads/${img.filename}" alt="${img.original_name}" loading="lazy">
+          <img src="/uploads/${img.filename}" alt="${img.original_name}" loading="lazy" class="w-full aspect-square object-cover">
           <div class="card-meta">
-            <span class="card-name">${img.original_name}</span>
             ${img.lat != null
               ? `<span class="card-coords">${img.lat.toFixed(5)}, ${img.lng.toFixed(5)}</span>`
               : '<span class="card-coords no-coords">No GPS data</span>'}

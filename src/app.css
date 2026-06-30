@@ -1,0 +1,64 @@
+@import "tailwindcss";
+@source "../public";
+
+@theme {
+  --color-accent: #2d6a4f;
+  --color-accent-hover: #1b4332;
+  --color-muted: #6b6b65;
+  --color-rim: #e0e0da;
+  --color-app: #f8f8f6;
+  --color-danger: #c0392b;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-[10px] border border-rim bg-white text-sm font-medium cursor-pointer no-underline transition-colors hover:bg-app;
+  }
+  .btn-primary {
+    @apply flex w-full items-center justify-center px-4 py-3 rounded-[10px] bg-accent border border-accent text-white text-base font-medium transition-colors hover:bg-accent-hover disabled:opacity-45 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-app;
+  }
+
+  .card {
+    @apply relative rounded-[10px] overflow-hidden bg-white border border-rim cursor-pointer transition-all;
+  }
+  .card:hover {
+    @apply -translate-y-0.5 shadow-md;
+  }
+  .card-meta {
+    @apply px-2.5 py-2 flex flex-col gap-0.5;
+  }
+  .card-name {
+    @apply text-[0.8rem] font-medium truncate;
+  }
+  .card-coords {
+    @apply text-[0.72rem] text-muted tabular-nums;
+  }
+  .no-coords {
+    @apply italic;
+  }
+
+  .delete-btn {
+    @apply absolute top-1.5 right-1.5 w-[26px] h-[26px] rounded-full bg-black/50 text-white border-0 text-base leading-none cursor-pointer flex items-center justify-center opacity-0 transition-opacity;
+  }
+  .card:hover .delete-btn {
+    @apply opacity-100;
+  }
+  @media (max-width: 640px) {
+    .delete-btn {
+      @apply opacity-100;
+    }
+  }
+
+  .field {
+    @apply flex flex-col gap-1.5;
+  }
+  .field label {
+    @apply text-[0.85rem] font-medium text-muted;
+  }
+  .field input {
+    @apply px-3 py-2.5 border border-rim rounded-[10px] text-base bg-white outline-none transition-colors focus:border-accent;
+  }
+}

@@ -6,53 +6,50 @@
   <title>Upload — Sardigna</title>
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <header>
+<body class="bg-app min-h-dvh">
+  <header class="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-rim sticky top-0 z-[100]">
     <a href="/" class="btn btn-ghost">← Back</a>
-    <h1>Upload Photo</h1>
+    <h1 class="flex-1 text-xl font-bold">Upload Photo</h1>
   </header>
 
-  <main class="upload-main">
-    <form id="upload-form">
-      <label id="drop-zone" for="file-input">
-        <div id="preview-wrap">
-          <svg id="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <main class="max-w-lg mx-auto px-5 py-6 flex flex-col gap-4">
+    <form id="upload-form" class="flex flex-col gap-4">
+      <label id="drop-zone" for="file-input" class="block border-2 border-dashed border-rim rounded-[10px] cursor-pointer transition-colors hover:border-accent hover:bg-green-50/40 overflow-hidden">
+        <div id="preview-wrap" class="min-h-[220px] flex flex-col items-center justify-center gap-3 p-6">
+          <svg id="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-12 h-12 text-muted">
             <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
           </svg>
-          <p id="drop-label">Tap to choose from your photo library</p>
-          <img id="preview-img" src="" alt="" hidden>
+          <p id="drop-label" class="text-muted text-[0.95rem] text-center leading-snug">Tap to choose from your photo library</p>
+          <img id="preview-img" src="" alt="" hidden class="w-full max-h-[320px] object-contain rounded-[8px]">
         </div>
       </label>
 
       <input type="file" id="file-input" name="image" accept="image/*" hidden>
-
-      <!-- Separate input that opens the camera directly -->
       <input type="file" id="camera-input" name="image" accept="image/*" capture="environment" hidden>
 
-      <button type="button" id="camera-btn" class="btn btn-ghost camera-btn">Take a new photo instead</button>
+      <button type="button" id="camera-btn" class="btn btn-ghost justify-center text-sm">Take a new photo instead</button>
 
-      <div id="gps-status">
-        <span id="gps-icon">📍</span>
+      <div id="gps-status" class="flex items-center gap-2 text-sm text-muted px-3 py-2 bg-white border border-rim rounded-[10px]">
+        <span>📍</span>
         <span id="gps-text">Waiting for location…</span>
       </div>
 
-      <button type="submit" id="submit-btn" class="btn btn-primary" disabled>Upload</button>
+      <button type="submit" id="submit-btn" class="btn-primary" disabled>Upload</button>
     </form>
 
-    <div id="result" hidden>
-      <div id="result-icon">✓</div>
-      <p id="result-msg"></p>
-      <div class="result-actions">
+    <div id="result" hidden class="flex flex-col items-center gap-4 py-8 text-center">
+      <div class="w-14 h-14 rounded-full bg-green-100 text-accent text-3xl flex items-center justify-center">✓</div>
+      <p id="result-msg" class="text-muted text-[0.95rem]"></p>
+      <div class="flex gap-2.5 flex-wrap justify-center">
         <a href="/" class="btn">View Gallery</a>
         <button id="upload-another" class="btn btn-ghost">Upload Another</button>
       </div>
     </div>
 
-    <div id="error-banner" hidden></div>
+    <div id="error-banner" hidden class="bg-red-50 text-danger border border-red-200 px-3.5 py-2.5 rounded-[10px] text-sm"></div>
   </main>
 
   <script>
-    // Redirect to login if not an admin
     fetch('/api/me').then(r => r.json()).then(data => {
       if (!data.admin) window.location.replace('/login.html?next=/upload.html');
     });
@@ -69,15 +66,13 @@
     const errorBanner = document.getElementById('error-banner');
 
     let activeInput = fileInput;
-    let currentPos = null; // { lat, lng }
+    let currentPos = null;
 
-    // Request location as soon as the page loads
     function startGeolocation() {
       if (!navigator.geolocation) {
         gpsText.textContent = 'Location not supported by this browser';
         return;
       }
-      gpsText.textContent = 'Waiting for location…';
       navigator.geolocation.watchPosition(
         (pos) => {
           currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -100,7 +95,6 @@
       const file = input.files[0];
       if (!file) return;
       activeInput = input;
-
       previewImg.src = URL.createObjectURL(file);
       previewImg.hidden = false;
       uploadIcon.hidden = true;
@@ -110,10 +104,7 @@
 
     fileInput.addEventListener('change', () => onFileSelected(fileInput));
     cameraInput.addEventListener('change', () => onFileSelected(cameraInput));
-
-    document.getElementById('camera-btn').addEventListener('click', () => {
-      cameraInput.click();
-    });
+    document.getElementById('camera-btn').addEventListener('click', () => cameraInput.click());
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -138,10 +129,9 @@
 
         form.hidden = true;
         result.hidden = false;
-        document.getElementById('result-msg').textContent =
-          json.lat != null
-            ? `Photo saved at ${json.lat.toFixed(5)}, ${json.lng.toFixed(5)}`
-            : 'Photo saved without location.';
+        document.getElementById('result-msg').textContent = json.lat != null
+          ? `Photo saved at ${json.lat.toFixed(5)}, ${json.lng.toFixed(5)}`
+          : 'Photo saved without location.';
       } catch (err) {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Upload';
@@ -150,7 +140,7 @@
       }
     });
 
-    function resetForm() {
+    document.getElementById('upload-another').addEventListener('click', () => {
       form.hidden = false;
       result.hidden = true;
       fileInput.value = '';
@@ -162,9 +152,7 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Upload';
       activeInput = fileInput;
-    }
-
-    document.getElementById('upload-another').addEventListener('click', resetForm);
+    });
   </script>
 </body>
 </html>
