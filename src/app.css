@@ -11,6 +11,7 @@
 }
 
 @layer components {
+  /* ── Buttons ── */
   .btn {
     @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-[10px] border border-rim bg-white text-sm font-medium cursor-pointer no-underline transition-colors hover:bg-app;
   }
@@ -21,25 +22,16 @@
     @apply border-transparent bg-transparent hover:bg-app;
   }
 
+  /* ── Gallery cards ── */
   .card {
-    @apply relative rounded-[10px] overflow-hidden bg-white border border-rim cursor-pointer transition-all;
+    @apply relative rounded-lg overflow-hidden bg-white border border-rim cursor-pointer transition-all;
   }
   .card:hover {
     @apply -translate-y-0.5 shadow-md;
   }
-  .card-meta {
-    @apply px-2.5 py-2 flex flex-col gap-0.5;
+  .card-selected {
+    @apply ring-2 ring-accent ring-offset-1;
   }
-  .card-name {
-    @apply text-[0.8rem] font-medium truncate;
-  }
-  .card-coords {
-    @apply text-[0.72rem] text-muted tabular-nums;
-  }
-  .no-coords {
-    @apply italic;
-  }
-
   .delete-btn {
     @apply absolute top-1.5 right-1.5 w-[26px] h-[26px] rounded-full bg-black/50 text-white border-0 text-base leading-none cursor-pointer flex items-center justify-center opacity-0 transition-opacity;
   }
@@ -47,11 +39,10 @@
     @apply opacity-100;
   }
   @media (max-width: 640px) {
-    .delete-btn {
-      @apply opacity-100;
-    }
+    .delete-btn { @apply opacity-100; }
   }
 
+  /* ── Login / Upload form fields ── */
   .field {
     @apply flex flex-col gap-1.5;
   }

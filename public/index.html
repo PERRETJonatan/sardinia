@@ -7,28 +7,47 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
-<body class="bg-app min-h-dvh">
-  <header class="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-rim sticky top-0 z-[100]">
+<body class="h-dvh flex flex-col bg-app overflow-hidden">
+
+  <header class="h-14 flex-shrink-0 flex items-center gap-3 px-5 bg-white border-b border-rim z-[100]">
     <h1 class="flex-1 text-xl font-bold">Sardigna</h1>
     <nav id="header-nav"></nav>
   </header>
 
-  <main>
-    <section>
-      <div id="map" class="h-[340px] w-full"></div>
-    </section>
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-    <section class="p-5">
-      <h2 class="text-[0.78rem] font-semibold uppercase tracking-wider text-muted mb-3.5">Photos</h2>
-      <div id="gallery" class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3"></div>
-      <p id="empty-state" hidden class="text-muted py-5">No photos yet.</p>
-    </section>
-  </main>
+    <!-- Right: map + detail — top on mobile, right on desktop -->
+    <div id="right-panel"
+         class="flex-shrink-0 h-[260px] flex flex-col
+                md:order-2 md:w-1/2 md:h-auto
+                transition-[height] duration-300 ease-in-out">
 
-  <div id="lightbox" hidden class="fixed inset-0 bg-black/85 z-[2000] flex flex-col items-center justify-center p-5 gap-4">
-    <button id="lightbox-close" class="fixed top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white border-0 text-2xl cursor-pointer flex items-center justify-center leading-none">&times;</button>
-    <img id="lightbox-img" src="" alt="" class="max-w-full max-h-[75dvh] rounded-[10px] object-contain">
-    <div id="lightbox-info" class="text-white text-center text-sm leading-relaxed"></div>
+      <!-- Detail panel (hidden until an image is selected) -->
+      <div id="detail-panel"
+           class="hidden flex-col flex-shrink-0 bg-white border-b border-rim">
+        <div class="relative bg-stone-950 flex-shrink-0">
+          <img id="detail-img" src="" alt=""
+               class="w-full h-48 md:h-60 object-contain">
+          <button id="detail-close"
+                  class="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center text-xl leading-none hover:bg-black/70 transition-colors">
+            &times;
+          </button>
+        </div>
+        <div id="detail-info" class="px-4 py-3 flex flex-col gap-1 min-w-0"></div>
+      </div>
+
+      <!-- Map fills remaining height -->
+      <div id="map" class="flex-1 min-h-0"></div>
+    </div>
+
+    <!-- Left: image grid — bottom on mobile, left on desktop -->
+    <aside class="flex-1 overflow-y-auto p-3 md:order-1 md:w-1/2 md:flex-none">
+      <div id="gallery"
+           class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+      </div>
+      <p id="empty-state" hidden class="text-muted py-10 text-center text-sm">No photos yet.</p>
+    </aside>
+
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -39,8 +58,10 @@
       maxZoom: 19,
     }).addTo(map);
 
-    const markers = [];
+    let markers = [];
+    let selectedId = null;
     let isAdmin = false;
+    let allImages = [];
 
     async function init() {
       const me = await fetch('/api/me').then(r => r.json());
@@ -64,81 +85,139 @@
     }
 
     async function loadImages() {
-      const images = await fetch('/api/images').then(r => r.json());
+      allImages = await fetch('/api/images').then(r => r.json());
+      renderGallery();
+      renderMarkers();
+    }
 
+    function renderGallery() {
       const gallery = document.getElementById('gallery');
       const emptyState = document.getElementById('empty-state');
-
       gallery.innerHTML = '';
-      markers.forEach(m => m.remove());
-      markers.length = 0;
 
-      if (images.length === 0) {
+      if (allImages.length === 0) {
         emptyState.hidden = false;
         return;
       }
       emptyState.hidden = true;
 
-      const geoImages = images.filter(img => img.lat != null && img.lng != null);
-
-      for (const img of images) {
+      for (const img of allImages) {
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = 'card' + (img.id === selectedId ? ' card-selected' : '');
+        card.dataset.id = img.id;
         card.innerHTML = `
-          <img src="/uploads/${img.filename}" alt="${img.original_name}" loading="lazy" class="w-full aspect-square object-cover">
-          <div class="card-meta">
-            ${img.lat != null
-              ? `<span class="card-coords">${img.lat.toFixed(5)}, ${img.lng.toFixed(5)}</span>`
-              : '<span class="card-coords no-coords">No GPS data</span>'}
-          </div>
-          ${isAdmin ? `<button class="delete-btn" data-id="${img.id}" title="Delete">&times;</button>` : ''}
+          <img src="/uploads/${img.filename}"
+               alt="${img.original_name}"
+               loading="lazy"
+               class="w-full aspect-square object-cover">
+          ${img.lat != null
+            ? `<span class="absolute bottom-1.5 left-1.5 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded-full leading-tight">📍</span>`
+            : ''}
+          ${isAdmin
+            ? `<button class="delete-btn">&times;</button>`
+            : ''}
         `;
-        card.querySelector('img').addEventListener('click', () => openLightbox(img));
+        card.addEventListener('click', () => selectImage(img));
         if (isAdmin) {
-          card.querySelector('.delete-btn').addEventListener('click', (e) => {
+          card.querySelector('.delete-btn').addEventListener('click', e => {
             e.stopPropagation();
             deleteImage(img.id);
           });
         }
         gallery.appendChild(card);
-
-        if (img.lat != null && img.lng != null) {
-          const marker = L.marker([img.lat, img.lng]).addTo(map);
-          marker.bindPopup(`
-            <img src="/uploads/${img.filename}" style="width:120px;height:80px;object-fit:cover;border-radius:4px;">
-            <br><small>${img.original_name}</small>
-          `);
-          marker.on('click', () => openLightbox(img));
-          markers.push(marker);
-        }
-      }
-
-      if (geoImages.length > 0) {
-        const bounds = L.latLngBounds(geoImages.map(i => [i.lat, i.lng]));
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
       }
     }
 
-    function openLightbox(img) {
-      document.getElementById('lightbox-img').src = `/uploads/${img.filename}`;
-      document.getElementById('lightbox-info').innerHTML = `
-        <strong>${img.original_name}</strong>
-        ${img.lat != null ? `<br>${img.lat.toFixed(6)}, ${img.lng.toFixed(6)}` : ''}
-        <br><small>${img.created_at}</small>
+    function renderMarkers() {
+      markers.forEach(m => m.remove());
+      markers = [];
+
+      const geo = allImages.filter(i => i.lat != null && i.lng != null);
+      for (const img of geo) {
+        const m = L.marker([img.lat, img.lng]).addTo(map);
+        m.bindTooltip(img.original_name);
+        m.on('click', () => selectImage(img));
+        markers.push(m);
+      }
+
+      if (geo.length > 0 && selectedId == null) {
+        map.fitBounds(L.latLngBounds(geo.map(i => [i.lat, i.lng])), {
+          padding: [40, 40], maxZoom: 14,
+        });
+      }
+    }
+
+    function selectImage(img) {
+      if (selectedId === img.id) { deselectImage(); return; }
+      selectedId = img.id;
+
+      // Highlight selected card
+      document.querySelectorAll('.card').forEach(c =>
+        c.classList.toggle('card-selected', +c.dataset.id === img.id)
+      );
+
+      // Populate detail panel
+      document.getElementById('detail-img').src = `/uploads/${img.filename}`;
+      document.getElementById('detail-info').innerHTML = `
+        <p class="font-semibold text-sm truncate">${img.original_name}</p>
+        ${img.lat != null
+          ? `<p class="text-xs text-muted tabular-nums">${img.lat.toFixed(6)}, ${img.lng.toFixed(6)}</p>`
+          : `<p class="text-xs text-muted italic">No location data</p>`}
+        <p class="text-xs text-muted">${new Date(img.created_at + 'Z').toLocaleString()}</p>
       `;
-      document.getElementById('lightbox').hidden = false;
+      const detail = document.getElementById('detail-panel');
+      detail.classList.remove('hidden');
+      detail.classList.add('flex');
+
+      // Expand right panel on mobile to fit detail + map
+      if (window.innerWidth < 768) {
+        document.getElementById('right-panel').style.height = '430px';
+      }
+
+      // Resize map, then fly
+      setTimeout(() => {
+        map.invalidateSize();
+        if (img.lat != null && img.lng != null) {
+          map.flyTo([img.lat, img.lng], 14, { duration: 1.2 });
+        }
+      }, 50);
+
+      // Scroll card into view
+      setTimeout(() => {
+        document.querySelector(`.card[data-id="${img.id}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
     }
 
-    document.getElementById('lightbox-close').addEventListener('click', () => {
-      document.getElementById('lightbox').hidden = true;
-    });
-    document.getElementById('lightbox').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) e.currentTarget.hidden = true;
-    });
+    function deselectImage() {
+      selectedId = null;
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('card-selected'));
+
+      const detail = document.getElementById('detail-panel');
+      detail.classList.add('hidden');
+      detail.classList.remove('flex');
+
+      if (window.innerWidth < 768) {
+        document.getElementById('right-panel').style.height = '';
+      }
+
+      setTimeout(() => {
+        map.invalidateSize();
+        const geo = allImages.filter(i => i.lat != null && i.lng != null);
+        if (geo.length > 0) {
+          map.flyToBounds(L.latLngBounds(geo.map(i => [i.lat, i.lng])), {
+            padding: [40, 40], maxZoom: 14, duration: 1,
+          });
+        }
+      }, 50);
+    }
+
+    document.getElementById('detail-close').addEventListener('click', deselectImage);
 
     async function deleteImage(id) {
       if (!confirm('Delete this photo?')) return;
       await fetch(`/api/images/${id}`, { method: 'DELETE' });
+      if (selectedId === id) deselectImage();
       loadImages();
     }
 
