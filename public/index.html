@@ -83,7 +83,7 @@
     function getModalMap() {
       if (lbMap) return lbMap;
       lbMap = L.map('lb-map', { zoomControl: false, attributionControl: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(lbMap);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(lbMap);
       return lbMap;
     }
 
