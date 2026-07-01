@@ -46,11 +46,19 @@
              class="max-w-full max-h-[60dvh] md:max-h-[85dvh] rounded-xl object-contain shadow-2xl">
       </div>
 
-      <!-- Info card -->
-      <div class="md:w-64 md:flex-shrink-0 bg-white/10 backdrop-blur rounded-xl p-4 flex flex-col gap-3 text-white">
-        <p id="lb-name" class="font-semibold text-base leading-snug"></p>
-        <div id="lb-coords" class="text-sm text-white/70 tabular-nums"></div>
-        <p id="lb-date" class="text-xs text-white/50 mt-auto"></p>
+      <!-- Right column: mini-map + info -->
+      <div class="md:w-64 md:flex-shrink-0 flex flex-col gap-3 min-h-0">
+        <!-- Mini map (hidden when no GPS) -->
+        <div id="lb-map-wrap" hidden class="rounded-xl overflow-hidden h-48 flex-shrink-0">
+          <div id="lb-map" class="w-full h-full"></div>
+        </div>
+
+        <!-- Info -->
+        <div class="bg-white/10 backdrop-blur rounded-xl p-4 flex flex-col gap-2 text-white">
+          <p id="lb-name" class="font-semibold text-base leading-snug"></p>
+          <div id="lb-coords" class="text-sm text-white/70 tabular-nums"></div>
+          <p id="lb-date" class="text-xs text-white/50"></p>
+        </div>
       </div>
     </div>
   </div>
@@ -67,6 +75,17 @@
     let selectedId = null;
     let isAdmin = false;
     let allImages = [];
+
+    // Modal map — created once, reused on every open
+    let lbMap = null;
+    let lbMarker = null;
+
+    function getModalMap() {
+      if (lbMap) return lbMap;
+      lbMap = L.map('lb-map', { zoomControl: false, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(lbMap);
+      return lbMap;
+    }
 
     async function init() {
       const me = await fetch('/api/me').then(r => r.json());
@@ -169,9 +188,25 @@
 
       document.getElementById('lightbox').hidden = false;
 
-      // Fly map to location
+      // Fly main map to location
       if (img.lat != null && img.lng != null) {
         map.flyTo([img.lat, img.lng], 14, { duration: 1.2 });
+      }
+
+      // Update modal map
+      const mapWrap = document.getElementById('lb-map-wrap');
+      if (img.lat != null && img.lng != null) {
+        mapWrap.hidden = false;
+        const modalMap = getModalMap();
+        if (lbMarker) lbMarker.remove();
+        lbMarker = L.marker([img.lat, img.lng]).addTo(modalMap);
+        // invalidateSize after the hidden element becomes visible
+        setTimeout(() => {
+          modalMap.invalidateSize();
+          modalMap.setView([img.lat, img.lng], 14);
+        }, 30);
+      } else {
+        mapWrap.hidden = true;
       }
     }
 

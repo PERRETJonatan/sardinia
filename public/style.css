@@ -11,7 +11,6 @@
     --color-red-200: oklch(88.5% 0.062 18.334);
     --color-green-50: oklch(98.2% 0.018 155.826);
     --color-green-100: oklch(96.2% 0.044 156.743);
-    --color-stone-950: oklch(14.7% 0.004 49.25);
     --color-black: #000;
     --color-white: #fff;
     --spacing: 0.25rem;
@@ -36,7 +35,6 @@
     --leading-snug: 1.375;
     --radius-lg: 0.5rem;
     --radius-xl: 0.75rem;
-    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
     --blur-sm: 8px;
     --default-transition-duration: 150ms;
     --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -199,6 +197,9 @@
   }
 }
 @layer utilities {
+  .visible {
+    visibility: visible;
+  }
   .absolute {
     position: absolute;
   }
@@ -235,9 +236,6 @@
   .mx-auto {
     margin-inline: auto;
   }
-  .mt-auto {
-    margin-top: auto;
-  }
   .block {
     display: block;
   }
@@ -261,6 +259,9 @@
   }
   .h-14 {
     height: calc(var(--spacing) * 14);
+  }
+  .h-48 {
+    height: calc(var(--spacing) * 48);
   }
   .h-\[260px\] {
     height: 260px;
