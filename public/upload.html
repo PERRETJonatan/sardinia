@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upload — Sardigna</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.cjs"></script>
 </head>
 <body class="bg-app min-h-dvh">
   <header class="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-rim sticky top-0 z-[100]">
@@ -34,6 +35,8 @@
         <span id="gps-text">Waiting for location…</span>
       </div>
 
+      <p id="compress-info" hidden class="text-xs text-muted text-center"></p>
+
       <button type="submit" id="submit-btn" class="btn-primary" disabled>Upload</button>
     </form>
 
@@ -54,51 +57,133 @@
       if (!data.admin) window.location.replace('/login.html?next=/upload.html');
     });
 
-    const fileInput = document.getElementById('file-input');
-    const cameraInput = document.getElementById('camera-input');
-    const previewImg = document.getElementById('preview-img');
-    const uploadIcon = document.getElementById('upload-icon');
-    const dropLabel = document.getElementById('drop-label');
-    const submitBtn = document.getElementById('submit-btn');
-    const gpsText = document.getElementById('gps-text');
-    const form = document.getElementById('upload-form');
-    const result = document.getElementById('result');
-    const errorBanner = document.getElementById('error-banner');
+    const fileInput    = document.getElementById('file-input');
+    const cameraInput  = document.getElementById('camera-input');
+    const previewImg   = document.getElementById('preview-img');
+    const uploadIcon   = document.getElementById('upload-icon');
+    const dropLabel    = document.getElementById('drop-label');
+    const submitBtn    = document.getElementById('submit-btn');
+    const gpsText      = document.getElementById('gps-text');
+    const compressInfo = document.getElementById('compress-info');
+    const form         = document.getElementById('upload-form');
+    const result       = document.getElementById('result');
+    const errorBanner  = document.getElementById('error-banner');
 
-    let activeInput = fileInput;
-    let currentPos = null;
+    let activeInput    = fileInput;
+    let currentPos     = null;  // from browser geolocation
+    let exifPos        = null;  // from photo EXIF
+    let compressedFile = null;
 
-    function startGeolocation() {
-      if (!navigator.geolocation) {
-        gpsText.textContent = 'Location not supported by this browser';
-        return;
+    // ── Geolocation ──────────────────────────────────────────────────────────
+
+    function updateGpsDisplay() {
+      if (exifPos) {
+        gpsText.textContent = `From photo: ${exifPos.lat.toFixed(5)}, ${exifPos.lng.toFixed(5)}`;
+      } else if (currentPos) {
+        gpsText.textContent = `From device: ${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)} (±${currentPos.acc}m)`;
+      } else {
+        gpsText.textContent = 'No location found';
       }
+    }
+
+    if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         (pos) => {
-          currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          const acc = Math.round(pos.coords.accuracy);
-          gpsText.textContent = `${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)} (±${acc}m)`;
+          currentPos = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            acc: Math.round(pos.coords.accuracy),
+          };
+          if (!exifPos) updateGpsDisplay();
         },
         (err) => {
           currentPos = null;
-          gpsText.textContent = err.code === 1
-            ? 'Location denied — photos will be saved without coordinates'
-            : 'Could not get location';
+          if (!exifPos) {
+            gpsText.textContent = err.code === 1
+              ? 'Location denied — photos will be saved without coordinates'
+              : 'Could not get location';
+          }
         },
         { enableHighAccuracy: true, maximumAge: 10000 }
       );
+    } else {
+      gpsText.textContent = 'Location not supported by this browser';
     }
 
-    startGeolocation();
+    // ── Image compression ─────────────────────────────────────────────────────
 
-    function onFileSelected(input) {
+    function fmt(bytes) {
+      return bytes >= 1024 * 1024
+        ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+        : `${Math.round(bytes / 1024)} KB`;
+    }
+
+    function compressImage(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const MAX = 1920;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (w > MAX || h > MAX) {
+            const s = Math.min(MAX / w, MAX / h);
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          canvas.toBlob(blob => {
+            if (!blob) { reject(new Error('Compression failed')); return; }
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', {
+              type: 'image/jpeg', lastModified: file.lastModified,
+            }));
+          }, 'image/jpeg', 0.82);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+        img.src = url;
+      });
+    }
+
+    // ── File selection ────────────────────────────────────────────────────────
+
+    async function onFileSelected(input) {
       const file = input.files[0];
       if (!file) return;
       activeInput = input;
+      exifPos = null;
+      compressedFile = null;
+      compressInfo.hidden = true;
+      submitBtn.disabled = true;
+
       previewImg.src = URL.createObjectURL(file);
       previewImg.hidden = false;
       uploadIcon.hidden = true;
       dropLabel.hidden = true;
+      gpsText.textContent = 'Processing…';
+
+      // Extract GPS from EXIF before canvas strips it
+      if (typeof exifr !== 'undefined') {
+        try {
+          const gps = await exifr.gps(file);
+          if (gps) exifPos = { lat: gps.latitude, lng: gps.longitude };
+        } catch {}
+      }
+
+      // Compress with canvas
+      try {
+        const orig = file.size;
+        compressedFile = await compressImage(file);
+        const comp = compressedFile.size;
+        const pct = Math.round((1 - comp / orig) * 100);
+        compressInfo.textContent = `${fmt(orig)} → ${fmt(comp)}${pct > 5 ? ` · ${pct}% smaller` : ''}`;
+        compressInfo.hidden = false;
+      } catch {
+        compressedFile = file;
+      }
+
+      updateGpsDisplay();
       submitBtn.disabled = false;
     }
 
@@ -106,9 +191,11 @@
     cameraInput.addEventListener('change', () => onFileSelected(cameraInput));
     document.getElementById('camera-btn').addEventListener('click', () => cameraInput.click());
 
+    // ── Upload ────────────────────────────────────────────────────────────────
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const file = activeInput.files[0];
+      const file = compressedFile || activeInput.files[0];
       if (!file) return;
 
       submitBtn.disabled = true;
@@ -117,9 +204,10 @@
 
       const data = new FormData();
       data.append('image', file);
-      if (currentPos) {
-        data.append('lat', currentPos.lat);
-        data.append('lng', currentPos.lng);
+      const gpsToSend = exifPos || currentPos;
+      if (gpsToSend) {
+        data.append('lat', gpsToSend.lat);
+        data.append('lng', gpsToSend.lng);
       }
 
       try {
@@ -152,6 +240,10 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Upload';
       activeInput = fileInput;
+      exifPos = null;
+      compressedFile = null;
+      compressInfo.hidden = true;
+      updateGpsDisplay();
     });
   </script>
 </body>

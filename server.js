@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import sharp from 'sharp';
 import { DatabaseSync } from 'node:sqlite';
 import exifr from 'exifr';
 import session from 'express-session';
@@ -7,7 +8,7 @@ import bcrypt from 'bcryptjs';
 const { compareSync } = bcrypt;
 import { fileURLToPath } from 'url';
 import { dirname, join, extname } from 'path';
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from 'fs';
 import { randomBytes } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ const storage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
     const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
-    cb(null, unique + extname(file.originalname));
+    cb(null, unique + '.jpg');
   },
 });
 
@@ -114,6 +115,19 @@ app.post('/api/upload', requireAdmin, upload.single('image'), async (req, res) =
     }
   } catch (err) {
     console.warn(`[exif] parse error for ${req.file.originalname}:`, err.message);
+  }
+
+  // Compress uploaded image to JPEG (runs after EXIF extraction so GPS data is already read)
+  try {
+    const tmp = req.file.path + '.tmp';
+    await sharp(req.file.path)
+      .rotate()
+      .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82, progressive: true })
+      .toFile(tmp);
+    renameSync(tmp, req.file.path);
+  } catch (err) {
+    console.warn(`[compress] ${req.file.originalname}: ${err.message}`);
   }
 
   if (lat == null && req.body.lat && req.body.lng) {
