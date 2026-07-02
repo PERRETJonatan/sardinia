@@ -14,7 +14,9 @@ import { randomBytes } from 'crypto';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const UPLOADS_DIR = join(__dirname, 'uploads');
+const THUMBS_DIR  = join(UPLOADS_DIR, 'thumbs');
 if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR);
+if (!existsSync(THUMBS_DIR))  mkdirSync(THUMBS_DIR);
 
 const db = new DatabaseSync(join(__dirname, 'database.sqlite'));
 db.exec(`
@@ -130,6 +132,16 @@ app.post('/api/upload', requireAdmin, upload.single('image'), async (req, res) =
     console.warn(`[compress] ${req.file.originalname}: ${err.message}`);
   }
 
+  // Generate thumbnail for the gallery grid
+  try {
+    await sharp(req.file.path)
+      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 75 })
+      .toFile(join(THUMBS_DIR, req.file.filename));
+  } catch (err) {
+    console.warn(`[thumb] ${req.file.originalname}: ${err.message}`);
+  }
+
   if (lat == null && req.body.lat && req.body.lng) {
     lat = parseFloat(req.body.lat);
     lng = parseFloat(req.body.lng);
@@ -157,7 +169,9 @@ app.delete('/api/images/:id', requireAdmin, (req, res) => {
   if (!image) return res.status(404).json({ error: 'Not found' });
 
   db.prepare('DELETE FROM images WHERE id = ?').run(id);
-  try { import('fs').then(({ unlinkSync }) => unlinkSync(join(UPLOADS_DIR, image.filename))); } catch {}
+  for (const path of [join(UPLOADS_DIR, image.filename), join(THUMBS_DIR, image.filename)]) {
+    try { import('fs').then(({ unlinkSync }) => unlinkSync(path)); } catch {}
+  }
   res.json({ ok: true });
 });
 

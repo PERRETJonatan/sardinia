@@ -1,14 +1,17 @@
 import sharp from 'sharp';
-import { readdirSync, statSync, renameSync, unlinkSync } from 'fs';
+import { readdirSync, statSync, renameSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS = join(__dirname, 'uploads');
-const MAX_PX = 2000;
+const THUMBS  = join(UPLOADS, 'thumbs');
+const MAX_PX  = 2000;
 const QUALITY = 82;
 const JPEG_EXTS = new Set(['.jpg', '.jpeg']);
+
+if (!existsSync(THUMBS)) mkdirSync(THUMBS);
 
 const db = new DatabaseSync(join(__dirname, 'database.sqlite'));
 
@@ -27,7 +30,7 @@ if (!files.length) {
   process.exit(0);
 }
 
-console.log(`Compressing ${files.length} image(s) in uploads/...\n`);
+console.log(`Processing ${files.length} image(s) in uploads/...\n`);
 
 let totalBefore = 0, totalAfter = 0, skipped = 0;
 
@@ -60,6 +63,12 @@ for (const file of files) {
     } else {
       console.log(`  ${file}: ${fmt(before)} → ${fmt(after)} (${pct > 0 ? `-${pct}%` : '±0%'})`);
     }
+
+    // Generate thumbnail from the compressed file
+    await sharp(dest)
+      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 75 })
+      .toFile(join(THUMBS, destName));
   } catch (err) {
     try { unlinkSync(tmp); } catch {}
     skipped++;
@@ -70,6 +79,6 @@ for (const file of files) {
 const n = files.length - skipped;
 if (n > 0 && totalBefore > 0) {
   const pct = Math.round((1 - totalAfter / totalBefore) * 100);
-  console.log(`\n${n} image${n !== 1 ? 's' : ''} compressed: ${fmt(totalBefore)} → ${fmt(totalAfter)} (${pct > 0 ? `-${pct}%` : '±0%'} saved)`);
+  console.log(`\n${n} image${n !== 1 ? 's' : ''} processed: ${fmt(totalBefore)} → ${fmt(totalAfter)} (${pct > 0 ? `-${pct}%` : '±0%'} saved) + ${n} thumbnail${n !== 1 ? 's' : ''} generated`);
 }
 if (skipped > 0) console.log(`${skipped} skipped`);

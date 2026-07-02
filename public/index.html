@@ -130,9 +130,10 @@
         card.className = 'card' + (img.id === selectedId ? ' card-selected' : '');
         card.dataset.id = img.id;
         card.innerHTML = `
-          <img src="/uploads/${img.filename}"
+          <img src="/uploads/thumbs/${img.filename}"
                alt="${img.original_name}"
                loading="lazy"
+               decoding="async"
                class="w-full aspect-square object-cover">
           ${img.lat != null
             ? `<span class="absolute bottom-1.5 left-1.5 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded-full leading-tight">📍</span>`
